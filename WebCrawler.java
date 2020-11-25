@@ -4,15 +4,16 @@ import crawler.logic.SearchThread;
 import crawler.logic.Site;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 
 public class WebCrawler extends JFrame {
-    private JTextArea textArea;
     private JTextField inputField;
     private JLabel title;
+    private DefaultTableModel dataModel;
 
     public WebCrawler() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -27,19 +28,27 @@ public class WebCrawler extends JFrame {
     }
 
     private void onButtonClick() {
-        ExecutorService service = Executors.newFixedThreadPool(10);
+        dataModel.setRowCount(0);
+        long time = System.currentTimeMillis();
+        ExecutorService service = Executors.newFixedThreadPool(1000);
         Map<String, Site> urls = new LinkedHashMap<>();
         urls.put(inputField.getText(), new Site(inputField.getText()));
-        service.submit(new SearchThread(inputField.getText(), service, urls));
+        service.submit(new SearchThread(inputField.getText(), service, urls, 0));
+
         try {
             service.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
 
-        final Site resultSite = urls.get(inputField.getText());
-        textArea.setText(resultSite.getContent());
-        title.setText(resultSite.getTitle());
+        final Site firstSite = urls.get(inputField.getText());
+        title.setText(firstSite.getTitle());
+
+        System.out.println(urls);
+        for (Site site : urls.values()) {
+            dataModel.addRow(new Object[]{site.getUrl(), site.getTitle()});
+        }
+        System.out.println(System.currentTimeMillis() - time);
     }
 
     private void initUserInterface() {
@@ -52,7 +61,7 @@ public class WebCrawler extends JFrame {
         inputField.setName("UrlTextField");
         buttonsContainer.add(inputField, BorderLayout.CENTER);
 
-        JButton button = new JButton("Get text!");
+        JButton button = new JButton("Parse");
         button.setName("RunButton");
         buttonsContainer.add(button, BorderLayout.EAST);
         button.addActionListener(e -> onButtonClick());
@@ -78,16 +87,18 @@ public class WebCrawler extends JFrame {
         container.setLayout(new BorderLayout());
         add(container);
 
-        textArea = new JTextArea();
-        textArea.setName("HtmlTextArea");
-        textArea.setEditable(false);
-        textArea.disable();
-        textArea.setBorder(BorderFactory.createCompoundBorder(
-                textArea.getBorder(),
+        dataModel = new DefaultTableModel();
+        dataModel.addColumn("URL");
+        dataModel.addColumn("Title");
+        JTable resultTable = new JTable(dataModel);
+        resultTable.setName("TitlesTable");
+        resultTable.setBorder(BorderFactory.createCompoundBorder(
+                resultTable.getBorder(),
                 BorderFactory.createEmptyBorder(15, 15, 15, 15)));
-        container.add(textArea);
+        resultTable.disable();
+        container.add(resultTable);
 
-        JScrollPane scroll = new JScrollPane(textArea);
+        JScrollPane scroll = new JScrollPane(resultTable);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
         container.add(scroll);
     }
