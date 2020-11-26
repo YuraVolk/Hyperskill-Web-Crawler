@@ -6,14 +6,17 @@ import crawler.logic.Site;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.io.*;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 
 public class WebCrawler extends JFrame {
     private JTextField inputField;
+    private JTextField fileDumpField;
     private JLabel title;
     private DefaultTableModel dataModel;
+    private Map<String, Site> urls = new LinkedHashMap<>();
 
     public WebCrawler() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -24,14 +27,15 @@ public class WebCrawler extends JFrame {
         setLocationRelativeTo(null);
         initUserInterface();
         setLayout(null);
+        setResizable(false);
         setVisible(true);
     }
 
     private void onButtonClick() {
         dataModel.setRowCount(0);
-        long time = System.currentTimeMillis();
+        urls = new LinkedHashMap<>();
         ExecutorService service = Executors.newFixedThreadPool(1000);
-        Map<String, Site> urls = new LinkedHashMap<>();
+
         urls.put(inputField.getText(), new Site(inputField.getText()));
         service.submit(new SearchThread(inputField.getText(), service, urls, 0));
 
@@ -44,11 +48,19 @@ public class WebCrawler extends JFrame {
         final Site firstSite = urls.get(inputField.getText());
         title.setText(firstSite.getTitle());
 
-        System.out.println(urls);
         for (Site site : urls.values()) {
             dataModel.addRow(new Object[]{site.getUrl(), site.getTitle()});
         }
-        System.out.println(System.currentTimeMillis() - time);
+    }
+
+    private void saveToFile() {
+        try (PrintWriter printWriter = new PrintWriter(fileDumpField.getText())) {
+            printWriter.print("");
+            for (Map.Entry<String, Site> entry : urls.entrySet()) {
+                printWriter.println(entry.getKey());
+                printWriter.println(entry.getValue().getTitle());
+            }
+        } catch (FileNotFoundException ignore) { }
     }
 
     private void initUserInterface() {
@@ -73,8 +85,8 @@ public class WebCrawler extends JFrame {
         add(titleContainer);
 
         Font titleFont = new Font("Roboto", Font.BOLD, 16);
-        JLabel titleLabel = new JLabel("Title: ");
 
+        JLabel titleLabel = new JLabel("Title: ");
         titleLabel.setFont(titleFont);
         titleContainer.add(titleLabel);
         title = new JLabel();
@@ -83,7 +95,7 @@ public class WebCrawler extends JFrame {
         titleContainer.add(title);
 
         JPanel container = new JPanel();
-        container.setBounds(30,70,425,365);
+        container.setBounds(30,70,425,345);
         container.setLayout(new BorderLayout());
         add(container);
 
@@ -101,5 +113,22 @@ public class WebCrawler extends JFrame {
         JScrollPane scroll = new JScrollPane(resultTable);
         scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
         container.add(scroll);
+
+        JPanel saveToFileContainer = new JPanel();
+        saveToFileContainer.setBounds(30,425,425,25);
+        saveToFileContainer.setLayout(new BorderLayout());
+        add(saveToFileContainer);
+
+        JLabel exportLabel = new JLabel("Export: ");
+        exportLabel.setFont(titleFont);
+        saveToFileContainer.add(exportLabel, BorderLayout.WEST);
+        fileDumpField = new JTextField();
+        fileDumpField.setName("ExportUrlTextField");
+        saveToFileContainer.add(fileDumpField, BorderLayout.CENTER);
+
+        JButton saveToFileButton = new JButton("Save");
+        saveToFileButton.setName("ExportButton");
+        saveToFileButton.addActionListener(e -> saveToFile());
+        saveToFileContainer.add(saveToFileButton, BorderLayout.EAST);
     }
 }

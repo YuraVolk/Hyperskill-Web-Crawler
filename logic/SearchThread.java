@@ -24,6 +24,7 @@ public class SearchThread extends Thread implements Runnable {
     private String getHTML(String url) {
         try {
             URLConnection urlConnection = new URL(url).openConnection();
+            urlConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:63.0) Gecko/20100101 Firefox/63.0");
             if (urlConnection.getContentType() != null && urlConnection.getContentType()
                     .contains("text/html")) {
                 InputStream inputStream = new URL(url).openStream();
