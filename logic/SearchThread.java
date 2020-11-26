@@ -8,18 +8,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class SearchThread extends Thread implements Runnable {
-    private final String url;
-    private final ExecutorService threadExecutor;
-    private final Map<String, Site> urls;
     private static final List<String> visitedLinks = Collections.synchronizedList(new ArrayList<>());
-    private volatile int depth;
-
-    public SearchThread(String url, ExecutorService threadExecutor, Map<String, Site> returnUrl, int depth) {
-        this.url = url;
-        this.threadExecutor = threadExecutor;
-        this.urls = returnUrl;
-        this.depth = depth;
-    }
+    public static volatile boolean run = true;
 
     private String getHTML(String url) {
         try {
@@ -39,7 +29,6 @@ public class SearchThread extends Thread implements Runnable {
             }
         } catch (MalformedURLException | UnknownHostException
                 | FileNotFoundException | SocketException | SocketTimeoutException ignore) {
-            ignore.printStackTrace();
             return "ERROR";
         } catch (IOException e) {
             e.printStackTrace();
@@ -64,11 +53,11 @@ public class SearchThread extends Thread implements Runnable {
             }
 
             if (tempResult.startsWith("//")) {
-                final String prefix = url.split("//")[0];
+                final String prefix = MultithreadedCrawler.getBaseUrl().split("//")[0];
                 tempResult = prefix + tempResult;
             } else if (!tempResult.contains("//")) {
-                final String protocol = url.split("//")[0];
-                String prefix = url.split("/")[2];
+                final String protocol = MultithreadedCrawler.getBaseUrl().split("//")[0];
+                String prefix = MultithreadedCrawler.getBaseUrl().split("/")[2];
                 if (!prefix.endsWith("/")) {
                     prefix = prefix + "/";
                 }
@@ -86,7 +75,43 @@ public class SearchThread extends Thread implements Runnable {
 
     @Override
     public void run() {
-        if (depth == 2) {
+        while (MultithreadedCrawler.isProcessRunning()) {
+            Task task = MultithreadedCrawler.getTask();
+            if (MultithreadedCrawler.urlVisited(task.getUrl())) {
+                continue;
+            }
+
+            MultithreadedCrawler.visitUrl(task.getUrl());
+
+            String html = getHTML(task.getUrl());
+
+            if (html.equals("ERROR")) {
+                continue;
+            }
+
+            Site site = new Site(task.getUrl());
+            try {
+                site.setContent(html);
+            } catch (IllegalStateException ignore) {
+                continue;
+            }
+
+
+            if (task.getDepth() + 1 < task.getMaxDepth()) {
+                for (String link : getAllLinks(html)) {
+                    MultithreadedCrawler.offerTask(link, task.getDepth() + 1);
+                }
+            }
+
+        }
+
+
+        /*
+        if (depth >= 2 or !run) {
+
+        }
+
+        if (depth >= 2 || !run) {
             threadExecutor.shutdown();
             return;
         }
@@ -100,19 +125,19 @@ public class SearchThread extends Thread implements Runnable {
         if (!resultSite.getContent().equals("")) {
             urls.put(url, resultSite);
         } else {
-            threadExecutor.shutdown();
             return;
         }
 
-        System.out.println(links.size());
-
         if (links.size() == 0) {
-            threadExecutor.shutdown();
             return;
         }
 
         for (String link : links) {
+            if (!run) {
+                threadExecutor.shutdown();
+                return;
+            }
             threadExecutor.submit(new SearchThread(link, threadExecutor, urls, depth + 1));
-        }
+        }*/
     }
 }

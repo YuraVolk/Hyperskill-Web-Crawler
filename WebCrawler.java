@@ -1,26 +1,34 @@
 package crawler;
 
+import crawler.logic.MultithreadedCrawler;
 import crawler.logic.SearchThread;
 import crawler.logic.Site;
 
 import javax.swing.*;
-import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.io.*;
+import java.io.FileNotFoundException;
+import java.io.PrintWriter;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.*;
 
 public class WebCrawler extends JFrame {
-    private JTextField inputField;
-    private JTextField fileDumpField;
-    private JLabel title;
-    private DefaultTableModel dataModel;
+    private JTextField urlInputField;
+    private JTextField workersInputField;
+    private JTextField depthInputField;
+    private JTextField timeLimitInputField;
+    private JTextField exportFileName;
+    private JCheckBox depthCheckbox;
+    private JCheckBox timeLimitCheckbox;
+    private JLabel elapsedTime;
+    private JLabel parsedPages;
+
+    private ExecutorService service;
     private Map<String, Site> urls = new LinkedHashMap<>();
 
     public WebCrawler() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(500, 500);
+        setSize(500, 280);
         setTitle("Web Crawler");
         setBackground(Color.decode("#e2e2e2"));
 
@@ -32,35 +40,25 @@ public class WebCrawler extends JFrame {
     }
 
     private void onButtonClick() {
-        dataModel.setRowCount(0);
-        urls = new LinkedHashMap<>();
-        ExecutorService service = Executors.newFixedThreadPool(1000);
+        Thread crawlThread = new Thread(() -> new MultithreadedCrawler().crawl(urlInputField.getText()));
 
-        urls.put(inputField.getText(), new Site(inputField.getText()));
-        service.submit(new SearchThread(inputField.getText(), service, urls, 0));
-
-        try {
-            service.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
-        final Site firstSite = urls.get(inputField.getText());
-        title.setText(firstSite.getTitle());
-
-        for (Site site : urls.values()) {
-            dataModel.addRow(new Object[]{site.getUrl(), site.getTitle()});
-        }
+        crawlThread.start();
     }
 
     private void saveToFile() {
-        try (PrintWriter printWriter = new PrintWriter(fileDumpField.getText())) {
-            printWriter.print("");
-            for (Map.Entry<String, Site> entry : urls.entrySet()) {
-                printWriter.println(entry.getKey());
-                printWriter.println(entry.getValue().getTitle());
-            }
-        } catch (FileNotFoundException ignore) { }
+        service.shutdownNow();
+        SearchThread.run = false;
+        if (service != null && !service.isTerminated()) {
+
+        } else {
+            try (PrintWriter printWriter = new PrintWriter(exportFileName.getText())) {
+                printWriter.print("");
+                for (Map.Entry<String, Site> entry : urls.entrySet()) {
+                    printWriter.println(entry.getKey());
+                    printWriter.println(entry.getValue().getTitle());
+                }
+            } catch (FileNotFoundException ignore) { }
+        }
     }
 
     private void initUserInterface() {
@@ -69,66 +67,94 @@ public class WebCrawler extends JFrame {
         buttonsContainer.setLayout(new BorderLayout());
         add(buttonsContainer);
 
-        inputField = new JTextField();
-        inputField.setName("UrlTextField");
-        buttonsContainer.add(inputField, BorderLayout.CENTER);
+        JLabel urlInputLabel = new JLabel("Start URL: ");
+        buttonsContainer.add(urlInputLabel, BorderLayout.WEST);
+        urlInputField = new JTextField();
+        buttonsContainer.add(urlInputField, BorderLayout.CENTER);
 
-        JButton button = new JButton("Parse");
-        button.setName("RunButton");
-        buttonsContainer.add(button, BorderLayout.EAST);
-        button.addActionListener(e -> onButtonClick());
+        JToggleButton runButton = new JToggleButton("Run");
+        buttonsContainer.add(runButton, BorderLayout.EAST);
+        runButton.addActionListener(e -> onButtonClick());
 
-        JPanel titleContainer = new JPanel();
-        titleContainer.setBounds(30,37,425,25);
-        titleContainer.setLayout(new BoxLayout(titleContainer, BoxLayout.X_AXIS));
-        titleContainer.setAlignmentX(Component.LEFT_ALIGNMENT);
-        add(titleContainer);
 
-        Font titleFont = new Font("Roboto", Font.BOLD, 16);
+        JPanel workersContainer = new JPanel();
+        workersContainer.setBounds(30,45,425,25);
+        workersContainer.setLayout(new BorderLayout());
+        add(workersContainer);
 
-        JLabel titleLabel = new JLabel("Title: ");
-        titleLabel.setFont(titleFont);
-        titleContainer.add(titleLabel);
-        title = new JLabel();
-        title.setFont(titleFont);
-        title.setName("TitleLabel");
-        titleContainer.add(title);
+        JLabel workersInputLabel = new JLabel("Workers: ");
+        workersContainer.add(workersInputLabel, BorderLayout.WEST);
+        workersInputField = new JTextField("5");
+        workersContainer.add(workersInputField, BorderLayout.CENTER);
 
-        JPanel container = new JPanel();
-        container.setBounds(30,70,425,345);
-        container.setLayout(new BorderLayout());
-        add(container);
 
-        dataModel = new DefaultTableModel();
-        dataModel.addColumn("URL");
-        dataModel.addColumn("Title");
-        JTable resultTable = new JTable(dataModel);
-        resultTable.setName("TitlesTable");
-        resultTable.setBorder(BorderFactory.createCompoundBorder(
-                resultTable.getBorder(),
-                BorderFactory.createEmptyBorder(15, 15, 15, 15)));
-        resultTable.disable();
-        container.add(resultTable);
+        JPanel depthContainer = new JPanel();
+        depthContainer.setBounds(30,80,425,25);
+        depthContainer.setLayout(new BorderLayout());
+        add(depthContainer);
 
-        JScrollPane scroll = new JScrollPane(resultTable);
-        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
-        container.add(scroll);
+        JLabel depthLabel = new JLabel("Maximum depth: ");
+        depthContainer.add(depthLabel, BorderLayout.WEST);
+        depthInputField = new JTextField("50");
+        depthContainer.add(depthInputField, BorderLayout.CENTER);
 
-        JPanel saveToFileContainer = new JPanel();
-        saveToFileContainer.setBounds(30,425,425,25);
-        saveToFileContainer.setLayout(new BorderLayout());
-        add(saveToFileContainer);
+        depthCheckbox = new JCheckBox("Enabled");
+        depthContainer.add(depthCheckbox, BorderLayout.EAST);
+
+
+        JPanel timeLimitContainer = new JPanel();
+        timeLimitContainer.setBounds(30,115,425,25);
+        timeLimitContainer.setLayout(new BorderLayout());
+        add(timeLimitContainer);
+
+        JLabel timeLimitLabel = new JLabel("Time limit: ");
+        timeLimitContainer.add(timeLimitLabel, BorderLayout.WEST);
+
+        JPanel timeLimitInputPanel = new JPanel(new BorderLayout());
+        timeLimitInputField = new JTextField("120");
+        timeLimitInputPanel.add(timeLimitInputField, BorderLayout.CENTER);
+        JLabel timeLimitMeasure = new JLabel("seconds");
+        timeLimitInputPanel.add(timeLimitMeasure, BorderLayout.EAST);
+        timeLimitContainer.add(timeLimitInputPanel);
+
+        timeLimitCheckbox = new JCheckBox("Enabled");
+        timeLimitContainer.add(timeLimitCheckbox, BorderLayout.EAST);
+
+
+        JPanel elapsedTimeContainer = new JPanel();
+        elapsedTimeContainer.setBounds(30,150,425,25);
+        elapsedTimeContainer.setLayout(new BorderLayout());
+        add(elapsedTimeContainer);
+
+        JLabel elapsedTimeLabel = new JLabel("Elapsed time: ");
+        elapsedTimeContainer.add(elapsedTimeLabel, BorderLayout.WEST);
+        elapsedTime = new JLabel("0:00");
+        elapsedTimeContainer.add(elapsedTime, BorderLayout.CENTER);
+
+
+        JPanel parsedPagesContainer = new JPanel();
+        parsedPagesContainer.setBounds(30,175,425,25);
+        parsedPagesContainer.setLayout(new BorderLayout());
+        add(parsedPagesContainer);
+
+        JLabel parsedPagesLabel = new JLabel("Parsed pages: ");
+        parsedPagesContainer.add(parsedPagesLabel, BorderLayout.WEST);
+        parsedPages = new JLabel("0");
+        parsedPagesContainer.add(parsedPages, BorderLayout.CENTER);
+
+
+        JPanel exportContainer = new JPanel();
+        exportContainer.setBounds(30,205,425,25);
+        exportContainer.setLayout(new BorderLayout());
+        add(exportContainer);
 
         JLabel exportLabel = new JLabel("Export: ");
-        exportLabel.setFont(titleFont);
-        saveToFileContainer.add(exportLabel, BorderLayout.WEST);
-        fileDumpField = new JTextField();
-        fileDumpField.setName("ExportUrlTextField");
-        saveToFileContainer.add(fileDumpField, BorderLayout.CENTER);
+        exportContainer.add(exportLabel, BorderLayout.WEST);
+        exportFileName = new JTextField();
+        exportContainer.add(exportFileName, BorderLayout.CENTER);
 
-        JButton saveToFileButton = new JButton("Save");
-        saveToFileButton.setName("ExportButton");
-        saveToFileButton.addActionListener(e -> saveToFile());
-        saveToFileContainer.add(saveToFileButton, BorderLayout.EAST);
+        JButton saveButton = new JButton("Save");
+        exportContainer.add(saveButton, BorderLayout.EAST);
+        saveButton.addActionListener(e -> saveToFile());
     }
 }

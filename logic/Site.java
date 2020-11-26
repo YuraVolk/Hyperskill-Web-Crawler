@@ -15,7 +15,6 @@ public class Site {
     }
 
     public void setContent(String content) {
-        System.out.println(content);
         if (content.equals("ERROR") || content.length() == 0) {
             return;
         }
