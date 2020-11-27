@@ -95,49 +95,13 @@ public class SearchThread extends Thread implements Runnable {
             } catch (IllegalStateException ignore) {
                 continue;
             }
+            MultithreadedCrawler.addParsedPage(site);
 
-
-            if (task.getDepth() + 1 < task.getMaxDepth()) {
+            if (task.getDepth() < task.getMaxDepth()) {
                 for (String link : getAllLinks(html)) {
                     MultithreadedCrawler.offerTask(link, task.getDepth() + 1);
                 }
             }
-
         }
-
-
-        /*
-        if (depth >= 2 or !run) {
-
-        }
-
-        if (depth >= 2 || !run) {
-            threadExecutor.shutdown();
-            return;
-        }
-
-        Site resultSite = new Site(url);
-        final String html = getHTML(url);
-        resultSite.setContent(html);
-
-        List<String> links = getAllLinks(html);
-        System.out.println(url);
-        if (!resultSite.getContent().equals("")) {
-            urls.put(url, resultSite);
-        } else {
-            return;
-        }
-
-        if (links.size() == 0) {
-            return;
-        }
-
-        for (String link : links) {
-            if (!run) {
-                threadExecutor.shutdown();
-                return;
-            }
-            threadExecutor.submit(new SearchThread(link, threadExecutor, urls, depth + 1));
-        }*/
     }
 }

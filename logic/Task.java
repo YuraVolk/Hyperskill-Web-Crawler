@@ -2,12 +2,10 @@ package crawler.logic;
 
 class Task {
     private int depth;
-    private int maxDepth;
     private String url;
 
-    public Task(int depth, int maxDepth, String url) {
+    public Task(int depth, String url) {
         this.depth = depth;
-        this.maxDepth = maxDepth;
         this.url = url;
     }
 
@@ -16,7 +14,7 @@ class Task {
     }
 
     public int getMaxDepth() {
-        return 4;
+        return MultithreadedCrawler.maxDepth;
     }
 
     public String getUrl() {

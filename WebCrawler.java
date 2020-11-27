@@ -1,16 +1,14 @@
 package crawler;
 
 import crawler.logic.MultithreadedCrawler;
-import crawler.logic.SearchThread;
 import crawler.logic.Site;
 
 import javax.swing.*;
 import java.awt.*;
 import java.io.FileNotFoundException;
 import java.io.PrintWriter;
-import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.concurrent.*;
+import java.util.function.Predicate;
 
 public class WebCrawler extends JFrame {
     private JTextField urlInputField;
@@ -20,11 +18,6 @@ public class WebCrawler extends JFrame {
     private JTextField exportFileName;
     private JCheckBox depthCheckbox;
     private JCheckBox timeLimitCheckbox;
-    private JLabel elapsedTime;
-    private JLabel parsedPages;
-
-    private ExecutorService service;
-    private Map<String, Site> urls = new LinkedHashMap<>();
 
     public WebCrawler() {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
@@ -40,25 +33,36 @@ public class WebCrawler extends JFrame {
     }
 
     private void onButtonClick() {
-        Thread crawlThread = new Thread(() -> new MultithreadedCrawler().crawl(urlInputField.getText()));
+        Predicate<String> isNumber = x -> x.chars().allMatch(Character::isDigit);
 
-        crawlThread.start();
+        int depth = 100;
+        if (depthCheckbox.isSelected() && isNumber.test(depthInputField.getText())) {
+            depth = Integer.parseInt(depthInputField.getText());
+        }
+
+        int timeLimit = -1;
+        if (timeLimitCheckbox.isSelected() && isNumber.test(timeLimitInputField.getText())) {
+            timeLimit = Integer.parseInt(timeLimitInputField.getText());
+        }
+
+        int workers = 5;
+        if (isNumber.test(workersInputField.getText())) {
+            workers = Integer.parseInt(workersInputField.getText());
+        }
+
+        MultithreadedCrawler.setupRunValues(workers, depth, timeLimit);
+        MultithreadedCrawler.crawl(urlInputField.getText());
     }
 
     private void saveToFile() {
-        service.shutdownNow();
-        SearchThread.run = false;
-        if (service != null && !service.isTerminated()) {
-
-        } else {
-            try (PrintWriter printWriter = new PrintWriter(exportFileName.getText())) {
-                printWriter.print("");
-                for (Map.Entry<String, Site> entry : urls.entrySet()) {
-                    printWriter.println(entry.getKey());
-                    printWriter.println(entry.getValue().getTitle());
-                }
-            } catch (FileNotFoundException ignore) { }
-        }
+        System.out.println(MultithreadedCrawler.getVisitedSites());
+        try (PrintWriter printWriter = new PrintWriter(exportFileName.getText())) {
+            printWriter.print("");
+            for (Map.Entry<String, String> entry : MultithreadedCrawler.getVisitedSites().entrySet()) {
+                printWriter.println(entry.getKey());
+                printWriter.println(entry.getValue());
+            }
+        } catch (FileNotFoundException ignore) { }
     }
 
     private void initUserInterface() {
@@ -70,9 +74,11 @@ public class WebCrawler extends JFrame {
         JLabel urlInputLabel = new JLabel("Start URL: ");
         buttonsContainer.add(urlInputLabel, BorderLayout.WEST);
         urlInputField = new JTextField();
+        urlInputField.setName("UrlTextField");
         buttonsContainer.add(urlInputField, BorderLayout.CENTER);
 
         JToggleButton runButton = new JToggleButton("Run");
+        runButton.setName("RunButton");
         buttonsContainer.add(runButton, BorderLayout.EAST);
         runButton.addActionListener(e -> onButtonClick());
 
@@ -96,9 +102,11 @@ public class WebCrawler extends JFrame {
         JLabel depthLabel = new JLabel("Maximum depth: ");
         depthContainer.add(depthLabel, BorderLayout.WEST);
         depthInputField = new JTextField("50");
+        depthInputField.setName("DepthTextField");
         depthContainer.add(depthInputField, BorderLayout.CENTER);
 
         depthCheckbox = new JCheckBox("Enabled");
+        depthCheckbox.setName("DepthCheckBox");
         depthContainer.add(depthCheckbox, BorderLayout.EAST);
 
 
@@ -128,7 +136,7 @@ public class WebCrawler extends JFrame {
 
         JLabel elapsedTimeLabel = new JLabel("Elapsed time: ");
         elapsedTimeContainer.add(elapsedTimeLabel, BorderLayout.WEST);
-        elapsedTime = new JLabel("0:00");
+        JLabel elapsedTime = new JLabel("0:00");
         elapsedTimeContainer.add(elapsedTime, BorderLayout.CENTER);
 
 
@@ -139,7 +147,8 @@ public class WebCrawler extends JFrame {
 
         JLabel parsedPagesLabel = new JLabel("Parsed pages: ");
         parsedPagesContainer.add(parsedPagesLabel, BorderLayout.WEST);
-        parsedPages = new JLabel("0");
+        JLabel parsedPages = new JLabel("0");
+        parsedPages.setName("ParsedLabel");
         parsedPagesContainer.add(parsedPages, BorderLayout.CENTER);
 
 
@@ -151,10 +160,14 @@ public class WebCrawler extends JFrame {
         JLabel exportLabel = new JLabel("Export: ");
         exportContainer.add(exportLabel, BorderLayout.WEST);
         exportFileName = new JTextField();
+        exportFileName.setName("ExportUrlTextField");
         exportContainer.add(exportFileName, BorderLayout.CENTER);
 
         JButton saveButton = new JButton("Save");
+        saveButton.setName("ExportButton");
         exportContainer.add(saveButton, BorderLayout.EAST);
         saveButton.addActionListener(e -> saveToFile());
+
+        MultithreadedCrawler.setupScreenInfo(elapsedTime, parsedPages, runButton);
     }
 }
